@@ -113,26 +113,26 @@ const WatermarkCamera: React.FC<WatermarkCameraProps> = ({ images, onImagesChang
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Grid of images */}
       {images.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
           {images.map((img, idx) => (
             <div key={idx} className="relative group rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video bg-gray-100 cursor-pointer" onClick={() => setViewingIndex(idx)}>
               <img src={img} alt={`Evidence ${idx + 1}`} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
               
-              {/* Delete Button */}
+              {/* Delete Button - Larger touch target */}
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
-                className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md hover:bg-red-600 transition-colors z-10"
+                className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md active:bg-red-700 transition-colors z-10"
                 title="Xóa ảnh"
               >
                 <i className="fas fa-times"></i>
               </button>
 
-              {/* Hover Overlay */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+              {/* Hover Overlay - Visible on Desktop only */}
+              <div className="hidden md:flex absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors items-center justify-center pointer-events-none">
                 <i className="fas fa-search-plus text-white opacity-0 group-hover:opacity-100 text-2xl drop-shadow-lg transform scale-50 group-hover:scale-100 transition-all"></i>
               </div>
             </div>
@@ -144,7 +144,7 @@ const WatermarkCamera: React.FC<WatermarkCameraProps> = ({ images, onImagesChang
       {images.length < 6 && (
         <div 
           onClick={() => !isProcessing && fileInputRef.current?.click()}
-          className={`border-2 border-dashed border-indigo-500 bg-white rounded-lg p-6 flex flex-col items-center justify-center transition-colors ${
+          className={`border-2 border-dashed border-indigo-500 bg-white rounded-lg p-6 md:p-8 flex flex-col items-center justify-center transition-colors active:bg-indigo-50 ${
             isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-indigo-50'
           }`}
         >
@@ -160,10 +160,10 @@ const WatermarkCamera: React.FC<WatermarkCameraProps> = ({ images, onImagesChang
             <div className="text-indigo-600 font-medium animate-pulse">Đang xử lý ảnh...</div>
           ) : (
             <>
-              <i className="fas fa-camera text-3xl text-indigo-600 mb-2"></i>
-              <p className="text-sm text-black font-medium text-center">
+              <i className="fas fa-camera text-3xl md:text-4xl text-indigo-600 mb-2"></i>
+              <p className="text-sm md:text-base text-black font-medium text-center">
                 Thêm ảnh ({images.length}/6)<br/>
-                <span className="text-xs font-normal text-gray-500">(Tự động đóng dấu ngày giờ)</span>
+                <span className="text-xs font-normal text-gray-500">(Tự động đóng dấu)</span>
               </p>
             </>
           )}
@@ -173,26 +173,26 @@ const WatermarkCamera: React.FC<WatermarkCameraProps> = ({ images, onImagesChang
       {/* Fullscreen Image Modal */}
       {viewingIndex !== null && (
         <div 
-          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center p-0 md:p-4 animate-fade-in"
           onClick={() => setViewingIndex(null)}
         >
           {/* Close Button */}
           <button 
-            className="absolute top-4 right-4 text-white/70 hover:text-white text-4xl z-50 focus:outline-none transition-colors"
+            className="absolute top-4 right-4 text-white/70 hover:text-white text-4xl z-50 focus:outline-none p-4"
             onClick={(e) => { e.stopPropagation(); setViewingIndex(null); }}
           >
             &times;
           </button>
 
           {/* Image Container */}
-          <div className="relative max-w-7xl max-h-screen w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full h-full max-w-7xl flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
             <img 
               src={images[viewingIndex]} 
               alt={`Evidence Full ${viewingIndex + 1}`} 
-              className="max-h-[85vh] max-w-full object-contain rounded shadow-2xl"
+              className="max-h-[85vh] max-w-full object-contain shadow-2xl"
             />
             
-            <div className="mt-4 text-white text-sm bg-white/10 px-4 py-2 rounded-full backdrop-blur-md border border-white/20">
+            <div className="absolute bottom-10 md:static md:mt-4 text-white text-sm bg-white/10 px-4 py-2 rounded-full backdrop-blur-md border border-white/20">
               Hình ảnh {viewingIndex + 1} / {images.length}
             </div>
 
@@ -200,7 +200,7 @@ const WatermarkCamera: React.FC<WatermarkCameraProps> = ({ images, onImagesChang
             {images.length > 1 && (
               <>
                 <button 
-                  className={`absolute left-2 md:left-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur transition-all ${viewingIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110'}`}
+                  className={`absolute left-2 md:left-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-all active:scale-90 ${viewingIndex === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (viewingIndex > 0) setViewingIndex(viewingIndex - 1);
@@ -210,7 +210,7 @@ const WatermarkCamera: React.FC<WatermarkCameraProps> = ({ images, onImagesChang
                   <i className="fas fa-chevron-left text-xl"></i>
                 </button>
                 <button 
-                  className={`absolute right-2 md:right-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur transition-all ${viewingIndex === images.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110'}`}
+                  className={`absolute right-2 md:right-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-all active:scale-90 ${viewingIndex === images.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (viewingIndex < images.length - 1) setViewingIndex(viewingIndex + 1);
