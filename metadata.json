@@ -1,0 +1,8 @@
+{
+  "name": "FunnyKids Incident Manager",
+  "description": "Incident reporting and monitoring system for FunnyKids branches with severity alerts and AI assistance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

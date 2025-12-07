@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FunnyKids Incident Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              fkRed: '#e11d48', // Rose-600
+              fkPurple: '#4f46e5', // Indigo-600
+              fkDark: '#1e1b4b', // Indigo-950
+            },
+            animation: {
+              'flash-red': 'flashRed 1s infinite',
+            },
+            keyframes: {
+              flashRed: {
+                '0%, 100%': { backgroundColor: 'rgba(225, 29, 72, 0.1)', borderColor: 'rgba(225, 29, 72, 1)' },
+                '50%': { backgroundColor: 'rgba(225, 29, 72, 0.3)', borderColor: 'rgba(255, 255, 255, 1)' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-50 text-slate-800">
+    <div id="root"></div>
+  </body>
+</html>
