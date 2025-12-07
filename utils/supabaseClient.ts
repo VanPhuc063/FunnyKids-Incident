@@ -6,6 +6,22 @@ let supabaseInstance: SupabaseClient | null = null;
 export const getSupabase = (): SupabaseClient | null => {
   if (supabaseInstance) return supabaseInstance;
 
+  // 1. Ưu tiên đọc từ biến môi trường (Cấu hình trên Vercel)
+  // Use type assertion to avoid TS errors when vite types are missing
+  const env = (import.meta as any).env;
+  const envUrl = env?.VITE_SUPABASE_URL;
+  const envKey = env?.VITE_SUPABASE_KEY;
+
+  if (envUrl && envKey) {
+    try {
+      supabaseInstance = createClient(envUrl, envKey);
+      return supabaseInstance;
+    } catch (e) {
+      console.error("Invalid Environment Variables Config", e);
+    }
+  }
+
+  // 2. Fallback sang LocalStorage (Cấu hình thủ công trên trình duyệt)
   const url = localStorage.getItem('sb_url');
   const key = localStorage.getItem('sb_key');
 
@@ -14,14 +30,14 @@ export const getSupabase = (): SupabaseClient | null => {
       supabaseInstance = createClient(url, key);
       return supabaseInstance;
     } catch (e) {
-      console.error("Invalid Supabase config", e);
+      console.error("Invalid Local Storage Config", e);
       return null;
     }
   }
   return null;
 };
 
-// Hàm khởi tạo/lưu cấu hình mới
+// Hàm khởi tạo/lưu cấu hình mới (Dùng cho nhập thủ công)
 export const initSupabase = (url: string, key: string) => {
   // Simple validation
   if (!url.startsWith('http') || key.length < 20) {
@@ -34,9 +50,10 @@ export const initSupabase = (url: string, key: string) => {
   return supabaseInstance;
 };
 
-// Hàm xóa cấu hình (Đăng xuất khỏi project)
+// Hàm xóa cấu hình
 export const resetSupabaseConfig = () => {
   localStorage.removeItem('sb_url');
   localStorage.removeItem('sb_key');
+  // Nếu có biến môi trường, instance sẽ được tạo lại từ biến môi trường ở lần gọi getSupabase tiếp theo
   supabaseInstance = null;
 };
