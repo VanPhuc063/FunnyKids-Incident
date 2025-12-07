@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { BRANCHES, Incident, Severity, IncidentType, DeviceStatus } from './types';
 import IncidentCard from './components/IncidentCard';
@@ -36,8 +37,6 @@ const App: React.FC = () => {
       setIsConfigured(true);
       fetchIncidents();
       setupRealtime(sb);
-    } else {
-      setShowConfigModal(true);
     }
     
     // Cleanup subscription on unmount
@@ -140,10 +139,9 @@ const App: React.FC = () => {
 
     if (error) {
       console.error('Error fetching incidents:', error);
-      // If error is related to auth or connection, show config modal
+      // If error is related to auth or connection
       if ((error as any).code === 'PGRST301' || (error as any).message?.includes('FetchError')) {
          setConnectionError('Không thể kết nối. Vui lòng kiểm tra lại URL và Key.');
-         setShowConfigModal(true);
       }
     } else {
       setIncidents(data as Incident[] || []);
@@ -392,15 +390,13 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            {isConfigured && (
-              <button 
-                onClick={() => setShowConfigModal(true)}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all"
-                title="Cấu hình kết nối"
-              >
-                <i className="fas fa-cog"></i>
-              </button>
-            )}
+            <button 
+              onClick={() => setShowConfigModal(true)}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all"
+              title="Cấu hình kết nối"
+            >
+              <i className="fas fa-cog"></i>
+            </button>
             
             <button 
               onClick={() => setIsMuted(!isMuted)} 
