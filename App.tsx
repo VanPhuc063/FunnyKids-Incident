@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BRANCHES, Incident, Severity, IncidentType, DeviceStatus } from './types';
 import IncidentCard from './components/IncidentCard';
 import WatermarkCamera from './components/WatermarkCamera';
 import { playAlertSound } from './utils';
-import { supabase } from './utils/supabaseClient';
+import { getSupabase, initSupabase, resetSupabaseConfig } from './utils/supabaseClient';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'report' | 'export'>('dashboard');
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Default false until we try to fetch
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<'all' | IncidentType>('all');
@@ -18,9 +19,78 @@ const App: React.FC = () => {
 
   // Audio Mute State
   const [isMuted, setIsMuted] = useState(false);
+
+  // Supabase Config State
+  const [isConfigured, setIsConfigured] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [configUrl, setConfigUrl] = useState('');
+  const [configKey, setConfigKey] = useState('');
+  const [connectionError, setConnectionError] = useState('');
   
+  const subscriptionRef = useRef<RealtimeChannel | null>(null);
+
+  // Initial Check for Config
+  useEffect(() => {
+    const sb = getSupabase();
+    if (sb) {
+      setIsConfigured(true);
+      fetchIncidents();
+      setupRealtime(sb);
+    } else {
+      setShowConfigModal(true);
+    }
+    
+    // Cleanup subscription on unmount
+    return () => {
+      if (subscriptionRef.current) subscriptionRef.current.unsubscribe();
+    };
+  }, []);
+
+  const setupRealtime = (sb: any) => {
+    if (subscriptionRef.current) subscriptionRef.current.unsubscribe();
+    
+    subscriptionRef.current = sb
+      .channel('incidents-channel')
+      .on(
+        'postgres_changes', 
+        { event: '*', schema: 'public', table: 'incidents' }, 
+        () => {
+          fetchIncidents(); 
+          playAlertSound(); 
+        }
+      )
+      .subscribe();
+  };
+
+  const handleSaveConfig = () => {
+    try {
+      setConnectionError('');
+      const sb = initSupabase(configUrl.trim(), configKey.trim());
+      setIsConfigured(true);
+      setShowConfigModal(false);
+      fetchIncidents();
+      setupRealtime(sb);
+    } catch (e) {
+      setConnectionError('URL hoặc Key không hợp lệ. Vui lòng kiểm tra lại.');
+    }
+  };
+
+  const handleResetConfig = () => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa cấu hình kết nối hiện tại?')) {
+      resetSupabaseConfig();
+      setIsConfigured(false);
+      setIncidents([]);
+      setShowConfigModal(true);
+      setConfigUrl('');
+      setConfigKey('');
+    }
+  };
+
   // Helper: Upload base64 image to Supabase Storage
   const uploadImage = async (base64Image: string): Promise<string | null> => {
+    const sb = getSupabase();
+    if (!sb) return null;
+
     try {
       // Convert base64 to blob
       const base64Str = base64Image.split(',')[1];
@@ -33,7 +103,7 @@ const App: React.FC = () => {
       const blob = new Blob([byteArray], { type: 'image/jpeg' });
 
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-      const { data, error } = await supabase.storage
+      const { data, error } = await sb.storage
         .from('incident-images')
         .upload(fileName, blob, {
           contentType: 'image/jpeg',
@@ -46,7 +116,7 @@ const App: React.FC = () => {
       }
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = sb.storage
         .from('incident-images')
         .getPublicUrl(fileName);
 
@@ -59,43 +129,28 @@ const App: React.FC = () => {
 
   // Fetch Data from Supabase
   const fetchIncidents = async () => {
+    const sb = getSupabase();
+    if (!sb) return;
+
     setIsLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('incidents')
       .select('*')
       .order('timestamp', { ascending: false });
 
     if (error) {
       console.error('Error fetching incidents:', error);
+      // If error is related to auth or connection, show config modal
+      if ((error as any).code === 'PGRST301' || (error as any).message?.includes('FetchError')) {
+         setConnectionError('Không thể kết nối. Vui lòng kiểm tra lại URL và Key.');
+         setShowConfigModal(true);
+      }
     } else {
       setIncidents(data as Incident[] || []);
       setLastUpdated(Date.now());
     }
     setIsLoading(false);
   };
-
-  // Initial Load & Realtime Subscription
-  useEffect(() => {
-    fetchIncidents();
-
-    // Subscribe to realtime changes
-    const subscription = supabase
-      .channel('incidents-channel')
-      .on(
-        'postgres_changes', 
-        { event: '*', schema: 'public', table: 'incidents' }, 
-        (payload) => {
-          // Refresh full list on any change for simplicity (or handle granularly)
-          fetchIncidents(); 
-          playAlertSound(); // Play sound on update to alert user
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
-  }, []);
 
   // Audio Alert Logic
   useEffect(() => {
@@ -133,6 +188,9 @@ const App: React.FC = () => {
 
   // Generic Update Handler
   const handleUpdateIncident = async (id: string, updates: Partial<Incident>) => {
+    const sb = getSupabase();
+    if (!sb) return;
+
     try {
       let finalUpdates = { ...updates };
 
@@ -149,14 +207,13 @@ const App: React.FC = () => {
         finalUpdates.resolutionImageUrls = uploadedUrls.filter(url => url !== null) as string[];
       }
 
-      const { error } = await supabase
+      const { error } = await sb
         .from('incidents')
         .update(finalUpdates)
         .eq('id', id);
 
       if (error) throw error;
       
-      // Local state update is handled by realtime subscription, but we can do optimistic update if needed
     } catch (error) {
       console.error('Error updating incident:', error);
       alert('Có lỗi xảy ra khi cập nhật!');
@@ -169,6 +226,12 @@ const App: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const sb = getSupabase();
+    if (!sb) {
+      alert("Chưa kết nối đến cơ sở dữ liệu!");
+      setShowConfigModal(true);
+      return;
+    }
     
     if (!formReporterName || !formReporterRole) {
       alert('Vui lòng nhập tên và chức vụ người báo cáo');
@@ -200,7 +263,7 @@ const App: React.FC = () => {
       isResolved: false
     };
 
-    const { error } = await supabase.from('incidents').insert([newIncident]);
+    const { error } = await sb.from('incidents').insert([newIncident]);
 
     setIsSubmitting(false);
 
@@ -328,17 +391,29 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <button 
-            onClick={() => setIsMuted(!isMuted)} 
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all border ${
-              isMuted 
-                ? 'bg-red-500/20 text-red-100 border-red-400/50 hover:bg-red-500/30' 
-                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-            }`}
-          >
-            <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'} text-lg`}></i>
-            <span className="text-xs font-bold hidden md:inline">{isMuted ? 'Đã tắt loa' : 'Đang bật loa'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {isConfigured && (
+              <button 
+                onClick={() => setShowConfigModal(true)}
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all"
+                title="Cấu hình kết nối"
+              >
+                <i className="fas fa-cog"></i>
+              </button>
+            )}
+            
+            <button 
+              onClick={() => setIsMuted(!isMuted)} 
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all border ${
+                isMuted 
+                  ? 'bg-red-500/20 text-red-100 border-red-400/50 hover:bg-red-500/30' 
+                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+              }`}
+            >
+              <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'} text-lg`}></i>
+              <span className="text-xs font-bold hidden md:inline">{isMuted ? 'Đã tắt loa' : 'Đang bật loa'}</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -667,6 +742,74 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* SUPABASE CONFIG MODAL */}
+      {showConfigModal && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
+                <i className="fas fa-database"></i>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">Kết nối cơ sở dữ liệu</h2>
+              <p className="text-gray-500 text-sm mt-1">Vui lòng nhập thông tin từ Supabase để bắt đầu</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Project URL</label>
+                <input 
+                  type="text" 
+                  value={configUrl} 
+                  onChange={(e) => setConfigUrl(e.target.value)} 
+                  className="w-full rounded border border-gray-300 p-3 focus:ring-2 focus:ring-green-500 outline-none"
+                  placeholder="https://your-project.supabase.co"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">API Key (Anon/Public)</label>
+                <input 
+                  type="password" 
+                  value={configKey} 
+                  onChange={(e) => setConfigKey(e.target.value)} 
+                  className="w-full rounded border border-gray-300 p-3 focus:ring-2 focus:ring-green-500 outline-none"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI..."
+                />
+              </div>
+              
+              {connectionError && (
+                <div className="text-red-600 text-sm bg-red-50 p-3 rounded flex items-center">
+                  <i className="fas fa-exclamation-circle mr-2"></i> {connectionError}
+                </div>
+              )}
+
+              <div className="pt-4 flex gap-3">
+                 {isConfigured && (
+                    <button onClick={() => handleResetConfig()} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors">
+                      Xóa cấu hình
+                    </button>
+                 )}
+                 {isConfigured && (
+                    <button onClick={() => setShowConfigModal(false)} className="flex-1 py-3 border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg transition-colors">
+                      Đóng
+                    </button>
+                 )}
+                 <button onClick={handleSaveConfig} className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-lg transition-transform active:scale-95">
+                   Lưu & Kết nối
+                 </button>
+              </div>
+              
+              <div className="text-center mt-4">
+                <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">
+                  <i className="fas fa-external-link-alt mr-1"></i> Lấy thông tin tại Supabase Dashboard
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
