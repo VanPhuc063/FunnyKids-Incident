@@ -276,6 +276,9 @@ const App: React.FC = () => {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Reload data immediately after update
+      await fetchIncidents();
       
     } catch (error) {
       console.error('Error updating incident:', error);
@@ -335,6 +338,9 @@ const App: React.FC = () => {
       alert('Lỗi: Không thể gửi báo cáo. Vui lòng thử lại.');
       return;
     }
+
+    // Reload data immediately after insert
+    await fetchIncidents();
     
     // Reset Form
     setFormTitle('');
