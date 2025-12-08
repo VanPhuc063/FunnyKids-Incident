@@ -17,10 +17,30 @@ interface BranchSectionProps {
 const BranchSection: React.FC<BranchSectionProps> = ({ branch, incidents, onUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Mặc định hiển thị 3 item, nếu expanded thì hiện hết
-  const visibleIncidents = isExpanded ? incidents : incidents.slice(0, 3);
-  const hiddenCount = incidents.length - 3;
-  const hasMore = incidents.length > 3;
+  // Logic sắp xếp: Nghiêm trọng (3) > Trung bình (2) > Thấp (1), sau đó đến Thời gian mới nhất
+  const sortedIncidents = [...incidents].sort((a, b) => {
+    const severityScore = {
+      [Severity.HIGH]: 3,
+      [Severity.MEDIUM]: 2,
+      [Severity.LOW]: 1
+    };
+
+    const scoreA = severityScore[a.severity] || 0;
+    const scoreB = severityScore[b.severity] || 0;
+
+    // Ưu tiên 1: Điểm mức độ cao hơn xếp trước
+    if (scoreA !== scoreB) {
+      return scoreB - scoreA;
+    }
+
+    // Ưu tiên 2: Thời gian mới hơn xếp trước
+    return b.timestamp - a.timestamp;
+  });
+
+  // Cắt danh sách hiển thị dựa trên danh sách ĐÃ SẮP XẾP
+  const visibleIncidents = isExpanded ? sortedIncidents : sortedIncidents.slice(0, 3);
+  const hiddenCount = sortedIncidents.length - 3;
+  const hasMore = sortedIncidents.length > 3;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6 transition-all duration-300">
@@ -49,10 +69,7 @@ const BranchSection: React.FC<BranchSectionProps> = ({ branch, incidents, onUpda
 
       {/* Grid Content */}
       <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-        {visibleIncidents
-          .sort((a, b) => b.timestamp - a.timestamp) // Sort by time desc just in case
-          .sort((a, b) => (a.severity === Severity.HIGH ? -1 : 1)) // High priority first
-          .map(incident => (
+        {visibleIncidents.map(incident => (
           <IncidentCard key={incident.id} incident={incident} onUpdate={onUpdate} />
         ))}
       </div>
