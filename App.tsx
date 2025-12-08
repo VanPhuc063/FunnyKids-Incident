@@ -7,6 +7,71 @@ import { playAlertSound } from './utils';
 import { getSupabase, initSupabase, resetSupabaseConfig } from './utils/supabaseClient';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+// --- SUB-COMPONENT: Branch Section ---
+interface BranchSectionProps {
+  branch: { id: string; name: string };
+  incidents: Incident[];
+  onUpdate: (id: string, updates: Partial<Incident>) => Promise<void>;
+}
+
+const BranchSection: React.FC<BranchSectionProps> = ({ branch, incidents, onUpdate }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Mặc định hiển thị 3 item, nếu expanded thì hiện hết
+  const visibleIncidents = isExpanded ? incidents : incidents.slice(0, 3);
+  const hiddenCount = incidents.length - 3;
+  const hasMore = incidents.length > 3;
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6 transition-all duration-300">
+      {/* Branch Header */}
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-6 bg-fkPurple rounded-full"></div>
+          <h2 className="text-base md:text-lg font-bold text-gray-800">
+            {branch.name}
+          </h2>
+          <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">
+            {incidents.length}
+          </span>
+        </div>
+        
+        {hasMore && (
+           <button 
+             onClick={() => setIsExpanded(!isExpanded)}
+             className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center transition-colors px-2 py-1 rounded hover:bg-indigo-50"
+           >
+             {isExpanded ? 'Thu gọn' : `Xem thêm ${hiddenCount} sự cố`}
+             <i className={`fas fa-chevron-${isExpanded ? 'up' : 'right'} ml-1.5`}></i>
+           </button>
+        )}
+      </div>
+
+      {/* Grid Content */}
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+        {visibleIncidents
+          .sort((a, b) => b.timestamp - a.timestamp) // Sort by time desc just in case
+          .sort((a, b) => (a.severity === Severity.HIGH ? -1 : 1)) // High priority first
+          .map(incident => (
+          <IncidentCard key={incident.id} incident={incident} onUpdate={onUpdate} />
+        ))}
+      </div>
+      
+      {/* Footer "Show More" if list is collapsed and has more items */}
+      {!isExpanded && hasMore && (
+        <div className="px-4 pb-4 pt-0 text-center md:hidden">
+           <button 
+             onClick={() => setIsExpanded(true)}
+             className="w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-500 text-sm font-medium rounded-lg border border-dashed border-gray-300 transition-colors"
+           >
+             Xem thêm {hiddenCount} sự cố khác <i className="fas fa-chevron-down ml-1"></i>
+           </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'report' | 'export'>('dashboard');
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -524,7 +589,7 @@ const App: React.FC = () => {
                 <p>Đang tải dữ liệu...</p>
               </div>
             ) : (
-              <>
+              <div>
                 {BRANCHES.filter(b => selectedBranchFilter === 'all' || b.id === selectedBranchFilter).map(branch => {
                   const branchIncidents = filteredIncidents.filter(i => i.branchId === branch.id);
                   if (branchIncidents.length === 0) {
@@ -535,20 +600,12 @@ const App: React.FC = () => {
                   }
 
                   return (
-                    <div key={branch.id} className="space-y-4">
-                      <h2 className="text-base md:text-lg font-bold text-gray-700 flex items-center border-l-4 border-fkPurple pl-3 bg-white/50 py-1 rounded-r">
-                        {branch.name}
-                        <span className="ml-2 bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">{branchIncidents.length}</span>
-                      </h2>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-                        {branchIncidents
-                          .sort((a, b) => b.timestamp - a.timestamp)
-                          .sort((a, b) => (a.severity === Severity.HIGH ? -1 : 1))
-                          .map(incident => (
-                          <IncidentCard key={incident.id} incident={incident} onUpdate={handleUpdateIncident} />
-                        ))}
-                      </div>
-                    </div>
+                    <BranchSection 
+                      key={branch.id} 
+                      branch={branch} 
+                      incidents={branchIncidents} 
+                      onUpdate={handleUpdateIncident} 
+                    />
                   );
                 })}
                 
@@ -558,7 +615,7 @@ const App: React.FC = () => {
                     <p>{selectedStatusFilter === 'unresolved' ? 'Tuyệt vời! Không có sự cố nào chưa xử lý.' : 'Không có dữ liệu phù hợp.'}</p>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}
