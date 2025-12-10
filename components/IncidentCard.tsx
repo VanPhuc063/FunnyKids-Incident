@@ -30,6 +30,9 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
   
   const [resViewerIndex, setResViewerIndex] = useState<number | null>(null);
 
+  // Helper: Check if incident is related to equipment (Device or Game)
+  const isEquipmentIssue = incident.type === IncidentType.DEVICE || incident.type === IncidentType.GAME;
+
   useEffect(() => {
     if (isResolvePopupOpen) {
       setResolutionNote(incident.resolutionNote || '');
@@ -64,6 +67,30 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
     [DeviceStatus.BROKEN]: 'bg-gray-100 text-gray-700 border-gray-200',
     [DeviceStatus.WAITING_PARTS]: 'bg-orange-100 text-orange-700 border-orange-200',
     [DeviceStatus.FIXED]: 'bg-green-100 text-green-700 border-green-200',
+  };
+
+  const renderTypeBadge = () => {
+    switch (incident.type) {
+      case IncidentType.ACCIDENT:
+        return (
+          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] md:text-xs font-bold uppercase tracking-wider border bg-rose-100 text-rose-800 border-rose-200">
+            <i className="fas fa-user-injured mr-1"></i> Tai nạn
+          </span>
+        );
+      case IncidentType.GAME:
+        return (
+          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] md:text-xs font-bold uppercase tracking-wider border bg-purple-100 text-purple-800 border-purple-200">
+            <i className="fas fa-gamepad mr-1"></i> Máy game
+          </span>
+        );
+      case IncidentType.DEVICE:
+      default:
+        return (
+          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] md:text-xs font-bold uppercase tracking-wider border bg-indigo-100 text-indigo-800 border-indigo-200">
+            <i className="fas fa-tools mr-1"></i> Thiết bị
+          </span>
+        );
+    }
   };
 
   const handlePrev = (e: React.MouseEvent) => {
@@ -108,7 +135,7 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
           resolutionImageUrls: resolutionImages
         });
         setIsResolvePopupOpen(false);
-      } else if (incident.type === IncidentType.DEVICE) {
+      } else if (isEquipmentIssue) {
         if (!deviceStatus) {
           setResolveError('Vui lòng chọn trạng thái thiết bị.');
           setIsUpdating(false);
@@ -176,16 +203,10 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
               {incident.severity === 'HIGH' ? 'Nghiêm trọng' : incident.severity === 'MEDIUM' ? 'TB' : 'Thấp'}
             </span>
 
-            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] md:text-xs font-bold uppercase tracking-wider border ${
-              incident.type === IncidentType.ACCIDENT 
-                ? 'bg-rose-100 text-rose-800 border-rose-200' 
-                : 'bg-indigo-100 text-indigo-800 border-indigo-200'
-            }`}>
-              {incident.type === IncidentType.ACCIDENT ? <><i className="fas fa-user-injured mr-1"></i> Tai nạn</> : <><i className="fas fa-tools mr-1"></i> Thiết bị</>}
-            </span>
+            {renderTypeBadge()}
 
             {!incident.isResolved ? (
-              incident.type === IncidentType.DEVICE && incident.deviceStatus ? (
+              isEquipmentIssue && incident.deviceStatus ? (
                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] md:text-xs font-bold uppercase tracking-wider border ${deviceStatusColors[incident.deviceStatus]}`}>
                     {deviceStatusLabels[incident.deviceStatus]}
                  </span>
@@ -224,7 +245,7 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
               onClick={(e) => { e.stopPropagation(); setIsResolvePopupOpen(true); }}
               className="px-3 py-1.5 bg-white border border-gray-300 rounded text-xs md:text-sm hover:bg-gray-50 font-bold text-gray-700 transition-colors shadow-sm active:bg-gray-100"
             >
-              {incident.type === IncidentType.DEVICE && incident.deviceStatus 
+              {isEquipmentIssue && incident.deviceStatus 
                 ? <><i className="fas fa-edit mr-1 text-indigo-600"></i> Cập nhật</>
                 : <><i className="fas fa-check-circle mr-1 text-green-600"></i> Xử lý</>
               }
@@ -334,12 +355,14 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
         <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in">
           <div className="bg-white rounded-t-xl md:rounded-xl shadow-2xl w-full max-w-lg p-5 md:p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 border-b pb-3 sticky top-0 bg-white z-10">
-              <h3 className="text-lg md:text-xl font-bold text-gray-800">{incident.type === IncidentType.ACCIDENT ? 'Xử lý sự cố tai nạn' : 'Cập nhật tình trạng thiết bị'}</h3>
+              <h3 className="text-lg md:text-xl font-bold text-gray-800">
+                {incident.type === IncidentType.ACCIDENT ? 'Xử lý sự cố tai nạn' : 'Cập nhật tình trạng'}
+              </h3>
               <button onClick={() => setIsResolvePopupOpen(false)} className="text-gray-400 hover:text-gray-600 p-2"><i className="fas fa-times text-xl"></i></button>
             </div>
 
             <div className="space-y-4 pb-8 md:pb-0">
-              {incident.type === IncidentType.DEVICE && (
+              {isEquipmentIssue && (
                 <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-2">
                   <label className="block text-sm font-bold text-indigo-900 mb-2">Cập nhật tình trạng</label>
                   <div className="mb-3">
@@ -361,13 +384,13 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
 
               {(incident.type === IncidentType.ACCIDENT || deviceStatus === DeviceStatus.FIXED) && (
                 <div className="animate-fade-in-up">
-                  {incident.type === IncidentType.DEVICE && <div className="my-3 border-t border-gray-100"></div>}
+                  {isEquipmentIssue && <div className="my-3 border-t border-gray-100"></div>}
                   <div className="mb-4">
                     <label className="block text-sm font-bold text-gray-700 mb-2">Nội dung xử lý <span className="text-red-500">*</span></label>
                     <textarea className="w-full rounded-lg border border-indigo-500 bg-white text-black p-3 text-base focus:border-indigo-700 focus:ring-2 focus:ring-indigo-200 outline-none transition-all placeholder-gray-400 font-medium" rows={4} placeholder={incident.type === IncidentType.ACCIDENT ? "Mô tả cách thức sơ cứu, xử lý..." : "Mô tả cách thức sửa chữa..."} value={resolutionNote} onChange={(e) => setResolutionNote(e.target.value)}></textarea>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Hình ảnh sau xử lý {incident.type === IncidentType.DEVICE && <span className="text-red-500"> (Bắt buộc 2-6 ảnh)</span>}{incident.type === IncidentType.ACCIDENT && <span className="font-normal text-gray-500"> (Nếu có)</span>}</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Hình ảnh sau xử lý {isEquipmentIssue && <span className="text-red-500"> (Bắt buộc 2-6 ảnh)</span>}{incident.type === IncidentType.ACCIDENT && <span className="font-normal text-gray-500"> (Nếu có)</span>}</label>
                     <WatermarkCamera images={resolutionImages} onImagesChange={setResolutionImages} />
                   </div>
                 </div>

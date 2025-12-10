@@ -430,7 +430,7 @@ const App: React.FC = () => {
       const dateStr = new Date(i.timestamp).toLocaleString('vi-VN');
       const status = i.isResolved ? "Đã xử lý" : (i.deviceStatus || "Chưa xử lý");
       const severityMap = { [Severity.HIGH]: "Cao", [Severity.MEDIUM]: "Trung bình", [Severity.LOW]: "Thấp" };
-      const typeMap = { [IncidentType.DEVICE]: "Thiết bị", [IncidentType.ACCIDENT]: "Tai nạn" };
+      const typeMap = { [IncidentType.DEVICE]: "Thiết bị", [IncidentType.GAME]: "Máy game", [IncidentType.ACCIDENT]: "Tai nạn" };
       
       const escape = (text: string | null | undefined) => `"${(text || '').replace(/"/g, '""')}"`;
 
@@ -581,6 +581,7 @@ const App: React.FC = () => {
                     >
                       <option value="all">Tất cả các loại</option>
                       <option value={IncidentType.DEVICE}>Sự cố thiết bị</option>
+                      <option value={IncidentType.GAME}>Sự cố máy game</option>
                       <option value={IncidentType.ACCIDENT}>Tai nạn / Y tế</option>
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700"><i className="fas fa-tag text-xs"></i></div>
@@ -651,13 +652,20 @@ const App: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                  <label className={labelStyle}>Loại sự cố <span className="text-red-500">*</span></label>
-                 <div className="grid grid-cols-2 gap-3 md:gap-4">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
                     <div 
                       onClick={() => setFormType(IncidentType.DEVICE)}
                       className={`cursor-pointer rounded-lg border-2 p-3 md:p-4 flex flex-col items-center justify-center transition-all ${formType === IncidentType.DEVICE ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300'}`}
                     >
                        <i className="fas fa-tools text-2xl md:text-3xl mb-2"></i>
                        <span className="font-bold text-sm md:text-base">Thiết bị</span>
+                    </div>
+                    <div 
+                      onClick={() => setFormType(IncidentType.GAME)}
+                      className={`cursor-pointer rounded-lg border-2 p-3 md:p-4 flex flex-col items-center justify-center transition-all ${formType === IncidentType.GAME ? 'border-purple-600 bg-purple-50 text-purple-700' : 'border-gray-200 hover:border-purple-300'}`}
+                    >
+                       <i className="fas fa-gamepad text-2xl md:text-3xl mb-2"></i>
+                       <span className="font-bold text-sm md:text-base">Máy game</span>
                     </div>
                     <div 
                       onClick={() => setFormType(IncidentType.ACCIDENT)}
@@ -697,7 +705,7 @@ const App: React.FC = () => {
 
               <div>
                 <label className={labelStyle}>Tiêu đề sự cố <span className="text-red-500">*</span></label>
-                <input type="text" required value={formTitle} onChange={(e) => setFormTitle(e.target.value)} className={inputStyle} placeholder="VD: Hỏng cầu trượt..." />
+                <input type="text" required value={formTitle} onChange={(e) => setFormTitle(e.target.value)} className={inputStyle} placeholder="VD: Hỏng cần gạt máy gắp..." />
               </div>
 
               <div>
@@ -784,10 +792,11 @@ const App: React.FC = () => {
                   const total = data.length;
                   const resolved = data.filter(i => i.isResolved).length;
                   const device = data.filter(i => i.type === IncidentType.DEVICE).length;
+                  const game = data.filter(i => i.type === IncidentType.GAME).length;
                   const accident = data.filter(i => i.type === IncidentType.ACCIDENT).length;
 
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
                       <div className="bg-white p-2 md:p-3 rounded border border-indigo-100 shadow-sm text-center">
                         <div className="text-xl md:text-2xl font-bold text-gray-800">{total}</div>
                         <div className="text-[10px] md:text-xs text-gray-500 font-medium">Tổng số</div>
@@ -799,6 +808,10 @@ const App: React.FC = () => {
                       <div className="bg-white p-2 md:p-3 rounded border border-indigo-200 shadow-sm text-center">
                         <div className="text-xl md:text-2xl font-bold text-indigo-600">{device}</div>
                         <div className="text-[10px] md:text-xs text-gray-500 font-medium">Thiết bị</div>
+                      </div>
+                      <div className="bg-white p-2 md:p-3 rounded border border-purple-200 shadow-sm text-center">
+                        <div className="text-xl md:text-2xl font-bold text-purple-600">{game}</div>
+                        <div className="text-[10px] md:text-xs text-gray-500 font-medium">Máy game</div>
                       </div>
                       <div className="bg-white p-2 md:p-3 rounded border border-rose-200 shadow-sm text-center">
                         <div className="text-xl md:text-2xl font-bold text-rose-600">{accident}</div>

@@ -7,6 +7,7 @@ export enum Severity {
 
 export enum IncidentType {
   DEVICE = 'DEVICE',   // Sự cố thiết bị
+  GAME = 'GAME',       // Sự cố máy game
   ACCIDENT = 'ACCIDENT' // Sự cố tai nạn
 }
 
