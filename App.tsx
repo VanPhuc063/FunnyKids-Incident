@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { BRANCHES, Incident, Severity, IncidentType, DeviceStatus, Branch } from './types';
 import IncidentCard from './components/IncidentCard';
 import WatermarkCamera from './components/WatermarkCamera';
@@ -12,9 +13,10 @@ interface BranchSectionProps {
   branch: { id: string; name: string };
   incidents: Incident[];
   onUpdate: (id: string, updates: Partial<Incident>) => Promise<void>;
+  readOnly?: boolean;
 }
 
-const BranchSection: React.FC<BranchSectionProps> = ({ branch, incidents, onUpdate }) => {
+const BranchSection: React.FC<BranchSectionProps> = ({ branch, incidents, onUpdate, readOnly }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Logic sắp xếp: Nghiêm trọng (3) > Trung bình (2) > Thấp (1), sau đó đến Thời gian mới nhất
@@ -70,7 +72,7 @@ const BranchSection: React.FC<BranchSectionProps> = ({ branch, incidents, onUpda
       {/* Grid Content */}
       <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
         {visibleIncidents.map(incident => (
-          <IncidentCard key={incident.id} incident={incident} onUpdate={onUpdate} />
+          <IncidentCard key={incident.id} incident={incident} onUpdate={onUpdate} readOnly={readOnly} />
         ))}
       </div>
       
@@ -89,8 +91,9 @@ const BranchSection: React.FC<BranchSectionProps> = ({ branch, incidents, onUpda
   );
 };
 
-const App: React.FC = () => {
+const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMode }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'report' | 'export'>('dashboard');
+  const [viewMode] = useState<'manager' | 'staff'>(initialMode);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [branches, setBranches] = useState<Branch[]>(BRANCHES);
   const [isLoading, setIsLoading] = useState(false); // Default false until we try to fetch
@@ -651,25 +654,29 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setShowAdminModal(true)}
-              className={`p-2 rounded-lg transition-all border ${
-                showAdminModal 
-                  ? 'bg-white text-fkPurple border-white' 
-                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-              }`}
-              title="Quản trị hệ thống"
-            >
-              <i className="fas fa-user-shield"></i>
-            </button>
+            {viewMode === 'manager' && (
+              <button 
+                onClick={() => setShowAdminModal(true)}
+                className={`p-2 rounded-lg transition-all border ${
+                  showAdminModal 
+                    ? 'bg-white text-fkPurple border-white' 
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                }`}
+                title="Quản trị hệ thống"
+              >
+                <i className="fas fa-user-shield"></i>
+              </button>
+            )}
 
-            <button 
-              onClick={() => setShowConfigModal(true)}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all"
-              title="Cấu hình kết nối"
-            >
-              <i className="fas fa-cog"></i>
-            </button>
+            {viewMode === 'manager' && (
+              <button 
+                onClick={() => setShowConfigModal(true)}
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all"
+                title="Cấu hình kết nối"
+              >
+                <i className="fas fa-cog"></i>
+              </button>
+            )}
             
             <button 
               onClick={() => setIsMuted(!isMuted)} 
@@ -698,30 +705,35 @@ const App: React.FC = () => {
             }`}
           >
             <div className="mb-1"><i className="fas fa-th-large text-lg"></i></div>
-            Theo dõi
+            {viewMode === 'staff' ? 'Theo dõi sự cố' : 'Theo dõi'}
           </button>
-          <button
-            onClick={() => setActiveTab('report')}
-            className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
-              activeTab === 'report' 
-                ? 'border-fkRed text-fkRed bg-red-50/50' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-             <div className="mb-1"><i className="fas fa-plus-circle text-lg"></i></div>
-            Báo cáo
-          </button>
-          <button
-            onClick={() => setActiveTab('export')}
-            className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
-              activeTab === 'export' 
-                ? 'border-green-600 text-green-700 bg-green-50/50' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-             <div className="mb-1"><i className="fas fa-file-export text-lg"></i></div>
-            Xuất file
-          </button>
+          
+          {viewMode === 'manager' && isAdminAuthenticated && (
+            <>
+              <button
+                onClick={() => setActiveTab('report')}
+                className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
+                  activeTab === 'report' 
+                    ? 'border-fkRed text-fkRed bg-red-50/50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                 <div className="mb-1"><i className="fas fa-plus-circle text-lg"></i></div>
+                Báo cáo
+              </button>
+              <button
+                onClick={() => setActiveTab('export')}
+                className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
+                  activeTab === 'export' 
+                    ? 'border-green-600 text-green-700 bg-green-50/50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                 <div className="mb-1"><i className="fas fa-file-export text-lg"></i></div>
+                Xuất file
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -731,6 +743,16 @@ const App: React.FC = () => {
         {activeTab === 'dashboard' && (
           <div className="space-y-4 md:space-y-6">
             
+            {viewMode === 'manager' && !isAdminAuthenticated && (
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg mb-4 text-amber-800 text-xs md:text-sm flex items-center gap-3 animate-fade-in">
+                <i className="fas fa-lock text-lg"></i>
+                <div>
+                  <p className="font-bold">Chế độ xem hạn chế</p>
+                  <p>Vui lòng đăng nhập Admin (biểu tượng khiên bảo vệ) để thực hiện các thao tác xử lý sự cố.</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end items-center gap-2 text-[10px] md:text-xs text-gray-500">
                <span>Last Updated: {new Date(lastUpdated).toLocaleString('vi-VN')}</span>
                <button onClick={handleRefresh} className="hover:text-indigo-600 transition-colors p-1">
@@ -837,6 +859,7 @@ const App: React.FC = () => {
                         branch={branch} 
                         incidents={branchIncidents} 
                         onUpdate={handleUpdateIncident} 
+                        readOnly={viewMode === 'staff' || !isAdminAuthenticated}
                       />
                     );
                   })
@@ -855,6 +878,7 @@ const App: React.FC = () => {
                       branch={{ id: 'unknown', name: 'Chi nhánh không xác định (Dữ liệu cũ)' }} 
                       incidents={unknownBranchIncidents} 
                       onUpdate={handleUpdateIncident} 
+                      readOnly={viewMode === 'staff' || !isAdminAuthenticated}
                     />
                   );
                 })()}
@@ -1412,6 +1436,18 @@ const App: React.FC = () => {
       )}
 
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<AppContent initialMode="manager" />} />
+        <Route path="/staff" element={<AppContent initialMode="staff" />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 };
 

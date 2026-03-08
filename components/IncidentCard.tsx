@@ -6,9 +6,10 @@ import WatermarkCamera from './WatermarkCamera';
 interface IncidentCardProps {
   incident: Incident;
   onUpdate: (id: string, updates: Partial<Incident>) => Promise<void>;
+  readOnly?: boolean;
 }
 
-const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
+const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate, readOnly }) => {
   const isHighSeverity = incident.severity === Severity.HIGH;
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -241,22 +242,24 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, onUpdate }) => {
       <div className="flex justify-between items-center border-t border-black/5 pt-3 mt-1 gap-2">
         <div className="flex items-center gap-2">
           {!incident.isResolved ? (
-            <button 
-              onClick={(e) => { e.stopPropagation(); setIsResolvePopupOpen(true); }}
-              className="px-3 py-1.5 bg-white border border-gray-300 rounded text-xs md:text-sm hover:bg-gray-50 font-bold text-gray-700 transition-colors shadow-sm active:bg-gray-100"
-            >
-              {isEquipmentIssue && incident.deviceStatus 
-                ? <><i className="fas fa-edit mr-1 text-indigo-600"></i> Cập nhật</>
-                : <><i className="fas fa-check-circle mr-1 text-green-600"></i> Xử lý</>
-              }
-            </button>
+            !readOnly && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); setIsResolvePopupOpen(true); }}
+                className="px-3 py-1.5 bg-white border border-gray-300 rounded text-xs md:text-sm hover:bg-gray-50 font-bold text-gray-700 transition-colors shadow-sm active:bg-gray-100"
+              >
+                {isEquipmentIssue && incident.deviceStatus 
+                  ? <><i className="fas fa-edit mr-1 text-indigo-600"></i> Cập nhật</>
+                  : <><i className="fas fa-check-circle mr-1 text-green-600"></i> Xử lý</>
+                }
+              </button>
+            )
           ) : (
             <span className="text-green-700 font-bold text-xs md:text-sm flex items-center bg-green-50 px-2 py-1 rounded border border-green-100">
               <i className="fas fa-check mr-1"></i> Đã xử lý
             </span>
           )}
 
-          {incident.severity === Severity.HIGH && !incident.isResolved && (
+          {!readOnly && incident.severity === Severity.HIGH && !incident.isResolved && (
             <button
               onClick={handleZaloShare}
               className="px-3 py-1.5 bg-blue-600 border border-blue-600 rounded text-xs md:text-sm hover:bg-blue-700 font-bold text-white transition-colors shadow-sm active:bg-blue-800 flex items-center animate-bounce-short"
