@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { BRANCHES, Incident, Severity, IncidentType, DeviceStatus, Branch } from './types';
 import IncidentCard from './components/IncidentCard';
 import WatermarkCamera from './components/WatermarkCamera';
@@ -1441,13 +1441,13 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={<AppContent initialMode="manager" />} />
         <Route path="/staff" element={<AppContent initialMode="staff" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
