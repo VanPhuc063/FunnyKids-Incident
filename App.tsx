@@ -4,7 +4,6 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { BRANCHES, Incident, Severity, IncidentType, DeviceStatus, Branch } from './types';
 import IncidentCard from './components/IncidentCard';
 import WatermarkCamera from './components/WatermarkCamera';
-import { playAlertSound } from './utils';
 import { getSupabase, initSupabase, resetSupabaseConfig } from './utils/supabaseClient';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -105,8 +104,6 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
 
   // Audio Mute State
-  const [isMuted, setIsMuted] = useState(false);
-
   // Supabase Config State
   const [isConfigured, setIsConfigured] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -156,7 +153,6 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
         { event: '*', schema: 'public', table: 'incidents' }, 
         () => {
           fetchIncidents(); 
-          playAlertSound(); 
         }
       )
       .subscribe();
@@ -346,22 +342,6 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
       await fetchIncidents();
     }
   };
-
-  // Audio Alert Logic
-  useEffect(() => {
-    const hasActiveHighSeverity = incidents.some(i => i.severity === Severity.HIGH && !i.isResolved);
-    let interval: number;
-
-    if (hasActiveHighSeverity && !isMuted) {
-      const triggerSound = () => playAlertSound();
-      triggerSound(); // Play immediately
-      interval = window.setInterval(triggerSound, 5000); // Loop every 5s
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [incidents, isMuted]);
 
   // Form State
   const [formBranchId, setFormBranchId] = useState('');
@@ -677,18 +657,6 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                 <i className="fas fa-cog"></i>
               </button>
             )}
-            
-            <button 
-              onClick={() => setIsMuted(!isMuted)} 
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all border ${
-                isMuted 
-                  ? 'bg-red-500/20 text-red-100 border-red-400/50 hover:bg-red-500/30' 
-                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-              }`}
-            >
-              <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'} text-lg`}></i>
-              <span className="text-xs font-bold hidden md:inline">{isMuted ? 'Đã tắt loa' : 'Đang bật loa'}</span>
-            </button>
           </div>
         </div>
       </header>
