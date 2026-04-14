@@ -291,7 +291,10 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
     const sb = getSupabase();
     if (!sb) return;
 
-    const newBranch = { name };
+    const newBranch = { 
+      id: 'b-' + Math.random().toString(36).substr(2, 9), // Generate a short unique ID
+      name 
+    };
     const { data, error } = await sb.from('branches').insert([newBranch]).select();
 
     if (error) {
@@ -479,6 +482,11 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
     
     if (!formReporterName || !formReporterRole) {
       alert('Vui lòng nhập tên và chức vụ người báo cáo');
+      return;
+    }
+
+    if (!formBranchId) {
+      alert('Vui lòng chọn chi nhánh');
       return;
     }
 
