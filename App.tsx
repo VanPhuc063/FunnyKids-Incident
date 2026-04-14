@@ -213,7 +213,8 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
         });
 
       if (error) {
-        console.error('Upload error:', error);
+        console.error('Upload error details:', error);
+        alert(`Lỗi tải ảnh: ${error.message}. Hãy đảm bảo bạn đã tạo bucket 'incident-images' trong Supabase Storage và để chế độ Public.`);
         return null;
       }
 
@@ -302,6 +303,8 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
       alert('Lỗi khi thêm chi nhánh: ' + error.message);
     } else {
       await fetchBranches();
+      setFormBranchId(newBranch.id); // Auto select the new branch
+      alert('Đã thêm chi nhánh: ' + name);
     }
   };
 
@@ -495,10 +498,22 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
     // 1. Upload Images
     const uploadedImageUrls: string[] = [];
     if (formImages.length > 0) {
+      console.log(`Uploading ${formImages.length} images...`);
       for (const base64 of formImages) {
         const url = await uploadImage(base64);
-        if (url) uploadedImageUrls.push(url);
+        if (url) {
+          uploadedImageUrls.push(url);
+        } else {
+          console.error("Failed to upload one of the images");
+        }
       }
+      console.log(`Successfully uploaded ${uploadedImageUrls.length} images`);
+    }
+
+    if (formImages.length > 0 && uploadedImageUrls.length === 0) {
+      alert("Lỗi: Không thể tải ảnh lên. Vui lòng kiểm tra cấu hình Supabase Storage (Bucket 'incident-images' phải được tạo và để Public).");
+      setIsSubmitting(false);
+      return;
     }
 
     // 2. Insert into DB
