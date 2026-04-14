@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { BRANCHES, Incident, Severity, IncidentType, DeviceStatus, Branch } from './types';
+import { BRANCHES, Incident, Severity, IncidentType, DeviceStatus, Branch, UserRole, AdminUser } from './types';
 import IncidentCard from './components/IncidentCard';
 import WatermarkCamera from './components/WatermarkCamera';
 import { getSupabase, initSupabase, resetSupabaseConfig } from './utils/supabaseClient';
@@ -95,6 +95,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
   const [viewMode] = useState<'manager' | 'staff'>(initialMode);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]); // Initialize empty to show connection status
+  const [allUsers, setAllUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved');
@@ -108,7 +109,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
   const [isConfigured, setIsConfigured] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -126,6 +127,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
       setIsConfigured(true);
       fetchIncidents();
       fetchBranches();
+      fetchUsers();
       setupRealtime(sb);
     }
     
@@ -137,9 +139,13 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
   // Check session storage for admin auth
   useEffect(() => {
-    const auth = sessionStorage.getItem('isAdminAuthenticated');
-    if (auth === 'true') {
-      setIsAdminAuthenticated(true);
+    const savedUser = sessionStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error parsing saved user', e);
+      }
     }
   }, []);
 
@@ -287,6 +293,66 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
     }
   };
 
+  const fetchUsers = async () => {
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const { data, error } = await sb
+      .from('admins')
+      .select('*')
+      .order('username', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching users:', error);
+    } else {
+      setAllUsers(data as AdminUser[]);
+    }
+  };
+
+  const handleUpdateUser = async (id: string, updates: Partial<AdminUser>) => {
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const { error } = await sb.from('admins').update(updates).eq('id', id);
+    if (error) {
+      alert('Lỗi cập nhật người dùng: ' + error.message);
+    } else {
+      await fetchUsers();
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm('Xóa tài khoản này?')) return;
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const { error } = await sb.from('admins').delete().eq('id', id);
+    if (error) {
+      alert('Lỗi xóa người dùng: ' + error.message);
+    } else {
+      await fetchUsers();
+    }
+  };
+
+  const handleAddUser = async (username: string, role: UserRole) => {
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const newUser = {
+      username,
+      password: '123', // Default password
+      role,
+      assignedBranchIds: []
+    };
+
+    const { error } = await sb.from('admins').insert([newUser]);
+    if (error) {
+      alert('Lỗi thêm người dùng: ' + error.message);
+    } else {
+      await fetchUsers();
+    }
+  };
+
   // Admin: Branch Management Actions
   const handleAddBranch = async (name: string) => {
     const sb = getSupabase();
@@ -411,8 +477,13 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
       } else if (!data) {
         setLoginError('Sai tên đăng nhập hoặc mật khẩu.');
       } else {
-        setIsAdminAuthenticated(true);
-        sessionStorage.setItem('isAdminAuthenticated', 'true');
+        const user = data as AdminUser;
+        setCurrentUser(user);
+        sessionStorage.setItem('currentUser', JSON.stringify(user));
+        // Fetch data for the logged in user
+        fetchIncidents();
+        fetchBranches();
+        fetchUsers();
       }
     } catch (err) {
       setLoginError('Lỗi kết nối. Vui lòng thử lại.');
@@ -422,8 +493,8 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
   };
 
   const handleAdminLogout = () => {
-    setIsAdminAuthenticated(false);
-    sessionStorage.removeItem('isAdminAuthenticated');
+    setCurrentUser(null);
+    sessionStorage.removeItem('currentUser');
     setAdminUsername('');
     setAdminPassword('');
   };
@@ -558,6 +629,13 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
   // Grouping logic for Dashboard
   const filteredIncidents = incidents.filter(i => {
+    // Role-based branch filtering
+    if (currentUser && currentUser.role !== UserRole.ADMIN) {
+      if (!currentUser.assignedBranchIds?.includes(i.branchId)) {
+        return false;
+      }
+    }
+
     const branchMatch = selectedBranchFilter === 'all' || i.branchId === selectedBranchFilter;
     const statusMatch = selectedStatusFilter === 'all' 
       ? true 
@@ -679,16 +757,6 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                 <i className="fas fa-user-shield"></i>
               </button>
             )}
-
-            {viewMode === 'manager' && (
-              <button 
-                onClick={() => setShowConfigModal(true)}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all"
-                title="Cấu hình kết nối"
-              >
-                <i className="fas fa-cog"></i>
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -708,7 +776,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
             {viewMode === 'staff' ? 'Theo dõi sự cố' : 'Theo dõi'}
           </button>
           
-          {viewMode === 'manager' && isAdminAuthenticated && (
+          {currentUser && (
             <>
               <button
                 onClick={() => setActiveTab('report')}
@@ -721,17 +789,19 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                  <div className="mb-1"><i className="fas fa-plus-circle text-lg"></i></div>
                 Báo cáo
               </button>
-              <button
-                onClick={() => setActiveTab('export')}
-                className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
-                  activeTab === 'export' 
-                    ? 'border-green-600 text-green-700 bg-green-50/50' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                 <div className="mb-1"><i className="fas fa-file-export text-lg"></i></div>
-                Xuất file
-              </button>
+              {currentUser.role === UserRole.ADMIN && (
+                <button
+                  onClick={() => setActiveTab('export')}
+                  className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
+                    activeTab === 'export' 
+                      ? 'border-green-600 text-green-700 bg-green-50/50' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                   <div className="mb-1"><i className="fas fa-file-export text-lg"></i></div>
+                  Xuất file
+                </button>
+              )}
             </>
           )}
         </div>
@@ -739,26 +809,65 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
       <main className="flex-grow max-w-screen-xl w-full mx-auto px-4 py-4 md:py-6">
         
-        {/* DASHBOARD */}
-        {activeTab === 'dashboard' && (
-          <div className="space-y-4 md:space-y-6">
-            
-            {viewMode === 'manager' && !isAdminAuthenticated && (
-              <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg mb-4 text-amber-800 text-xs md:text-sm flex items-center gap-3 animate-fade-in">
-                <i className="fas fa-lock text-lg"></i>
-                <div>
-                  <p className="font-bold">Chế độ xem hạn chế</p>
-                  <p>Vui lòng đăng nhập Admin (biểu tượng khiên bảo vệ) để thực hiện các thao tác xử lý sự cố.</p>
+        {!currentUser ? (
+          <div className="max-w-md mx-auto py-12">
+            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-fkPurple/10 text-fkPurple rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">
+                  <i className="fas fa-user-lock"></i>
                 </div>
+                <h2 className="text-2xl font-bold text-gray-800">Đăng nhập hệ thống</h2>
+                <p className="text-gray-500 mt-2">Vui lòng đăng nhập để truy cập dữ liệu</p>
               </div>
-            )}
-
-            <div className="flex justify-end items-center gap-2 text-[10px] md:text-xs text-gray-500">
-               <span>Last Updated: {new Date(lastUpdated).toLocaleString('vi-VN')}</span>
-               <button onClick={handleRefresh} className="hover:text-indigo-600 transition-colors p-1">
-                  <i className={`fas fa-sync-alt ${isLoading ? 'animate-spin' : ''}`}></i>
-               </button>
+              <form onSubmit={handleAdminLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Tên đăng nhập</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={adminUsername}
+                    onChange={(e) => setAdminUsername(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 p-3 focus:ring-2 focus:ring-fkPurple outline-none"
+                    placeholder="Nhập username..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Mật khẩu</label>
+                  <input 
+                    type="password" 
+                    required
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 p-3 focus:ring-2 focus:ring-fkPurple outline-none"
+                    placeholder="••••••••"
+                  />
+                </div>
+                {loginError && (
+                  <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center">
+                    <i className="fas fa-exclamation-circle mr-2"></i> {loginError}
+                  </div>
+                )}
+                <button 
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full py-3.5 bg-fkPurple hover:bg-indigo-700 text-white font-bold rounded-lg shadow-lg transition-all active:scale-95 flex items-center justify-center"
+                >
+                  {isLoggingIn ? <i className="fas fa-circle-notch fa-spin"></i> : 'Đăng nhập'}
+                </button>
+              </form>
             </div>
+          </div>
+        ) : (
+          <>
+            {/* DASHBOARD */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-4 md:space-y-6">
+                <div className="flex justify-end items-center gap-2 text-[10px] md:text-xs text-gray-500">
+                   <span>Last Updated: {new Date(lastUpdated).toLocaleString('vi-VN')}</span>
+                   <button onClick={handleRefresh} className="hover:text-indigo-600 transition-colors p-1">
+                      <i className={`fas fa-sync-alt ${isLoading ? 'animate-spin' : ''}`}></i>
+                   </button>
+                </div>
 
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
               {/* Summary Stats Bar */}
@@ -829,10 +938,13 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                       onChange={(e) => setSelectedBranchFilter(e.target.value)}
                       className={`${inputStyle} font-bold text-indigo-900 bg-indigo-50/50`}
                     >
-                      <option value="all">Hiển thị tất cả chi nhánh ({branches.length} chi nhánh)</option>
-                      {branches.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
+                      <option value="all">Hiển thị tất cả chi nhánh ({branches.filter(b => currentUser?.role === UserRole.ADMIN || currentUser?.assignedBranchIds?.includes(b.id)).length} chi nhánh)</option>
+                      {branches
+                        .filter(b => currentUser?.role === UserRole.ADMIN || currentUser?.assignedBranchIds?.includes(b.id))
+                        .map(b => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))
+                      }
                     </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-indigo-700"><i className="fas fa-store text-sm"></i></div>
                 </div>
@@ -848,7 +960,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
               <div className="space-y-6">
                 {/* 1. Show incidents grouped by known branches */}
                 {branches
-                  .filter(b => selectedBranchFilter === 'all' || b.id === selectedBranchFilter)
+                  .filter(b => (selectedBranchFilter === 'all' || b.id === selectedBranchFilter) && (currentUser?.role === UserRole.ADMIN || currentUser?.assignedBranchIds?.includes(b.id)))
                   .map(branch => {
                     const branchIncidents = filteredIncidents.filter(i => i.branchId === branch.id);
                     if (branchIncidents.length === 0) return null;
@@ -859,7 +971,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                         branch={branch} 
                         incidents={branchIncidents} 
                         onUpdate={handleUpdateIncident} 
-                        readOnly={viewMode === 'staff' || !isAdminAuthenticated}
+                        readOnly={viewMode === 'staff' || (currentUser?.role !== UserRole.ADMIN && currentUser?.role !== UserRole.TECHNICAL)}
                       />
                     );
                   })
@@ -878,7 +990,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                       branch={{ id: 'unknown', name: 'Chi nhánh không xác định (Dữ liệu cũ)' }} 
                       incidents={unknownBranchIncidents} 
                       onUpdate={handleUpdateIncident} 
-                      readOnly={viewMode === 'staff' || !isAdminAuthenticated}
+                      readOnly={viewMode === 'staff' || (currentUser?.role !== UserRole.ADMIN && currentUser?.role !== UserRole.TECHNICAL)}
                     />
                   );
                 })()}
@@ -956,7 +1068,10 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                 <label className={labelStyle}>Chi nhánh xảy ra sự cố</label>
                 <div className="relative">
                   <select value={formBranchId} onChange={(e) => setFormBranchId(e.target.value)} className={inputStyle}>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    {branches
+                      .filter(b => currentUser?.role === UserRole.ADMIN || currentUser?.assignedBranchIds?.includes(b.id))
+                      .map(b => <option key={b.id} value={b.id}>{b.name}</option>)
+                    }
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700"><i className="fas fa-chevron-down text-xs"></i></div>
                 </div>
@@ -1110,6 +1225,8 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
             </div>
           </div>
         )}
+          </>
+        )}
       </main>
 
       {/* SUPABASE CONFIG MODAL */}
@@ -1184,7 +1301,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-fade-in-up">
             <div className="p-4 md:p-6">
-              {!isAdminAuthenticated ? (
+              {!currentUser ? (
                 /* LOGIN FORM */
                 <div className="max-w-md mx-auto py-10">
                   <div className="text-center mb-8">
@@ -1276,6 +1393,16 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                     </div>
                   </div>
 
+              {currentUser.role !== UserRole.ADMIN && (
+                <div className="p-8 text-center">
+                  <i className="fas fa-lock text-4xl text-gray-300 mb-4"></i>
+                  <h3 className="text-xl font-bold text-gray-800">Quyền truy cập hạn chế</h3>
+                  <p className="text-gray-500 mt-2">Chỉ tài khoản ADMIN mới có thể truy cập trang quản trị này.</p>
+                </div>
+              )}
+
+              {currentUser.role === UserRole.ADMIN && (
+                <>
               {connectionError && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-start gap-3">
                   <i className="fas fa-exclamation-triangle mt-0.5"></i>
@@ -1291,6 +1418,110 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                   </div>
                 </div>
               )}
+
+              {/* User Management Section */}
+              <section className="mb-8">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                  <h3 className="text-lg font-bold text-gray-700 flex items-center">
+                    <i className="fas fa-users mr-2 text-fkPurple"></i>
+                    Quản lý tài khoản
+                  </h3>
+                  <button 
+                    onClick={() => {
+                      const username = prompt('Nhập tên đăng nhập mới:');
+                      if (username) handleAddUser(username, UserRole.STAFF);
+                    }}
+                    className="w-full sm:w-auto bg-fkPurple hover:bg-indigo-700 text-white text-sm font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center shadow-sm"
+                  >
+                    <i className="fas fa-user-plus mr-2"></i> Thêm tài khoản
+                  </button>
+                </div>
+
+                <div className="border rounded-xl overflow-hidden bg-white">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm min-w-[600px]">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 font-bold text-gray-600">Tên đăng nhập</th>
+                          <th className="px-4 py-3 font-bold text-gray-600">Vai trò</th>
+                          <th className="px-4 py-3 font-bold text-gray-600">Chi nhánh được gán</th>
+                          <th className="px-4 py-3 font-bold text-gray-600 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {allUsers.map(user => (
+                          <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 font-medium text-gray-800">{user.username}</td>
+                            <td className="px-4 py-3">
+                              <select 
+                                value={user.role} 
+                                onChange={(e) => handleUpdateUser(user.id, { role: e.target.value as UserRole })}
+                                className="text-xs border rounded p-1"
+                                disabled={user.username === 'admin'}
+                              >
+                                <option value={UserRole.STAFF}>Nhân viên (STAFF)</option>
+                                <option value={UserRole.BRANCH_MANAGER}>Quản lý (MANAGER)</option>
+                                <option value={UserRole.TECHNICAL}>Kĩ thuật (TECHNICAL)</option>
+                                <option value={UserRole.ADMIN}>Quản trị (ADMIN)</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {user.role === UserRole.ADMIN ? (
+                                  <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">Tất cả</span>
+                                ) : (
+                                  <>
+                                    {user.assignedBranchIds?.map(bid => (
+                                      <span key={bid} className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                        {branches.find(b => b.id === bid)?.name || bid}
+                                        <button onClick={() => {
+                                          const newBids = user.assignedBranchIds.filter(id => id !== bid);
+                                          handleUpdateUser(user.id, { assignedBranchIds: newBids });
+                                        }} className="hover:text-red-500">×</button>
+                                      </span>
+                                    ))}
+                                    <button 
+                                      onClick={() => {
+                                        const bid = prompt('Nhập ID chi nhánh hoặc chọn từ danh sách (tính năng này nên là dropdown):');
+                                        if (bid && !user.assignedBranchIds.includes(bid)) {
+                                          handleUpdateUser(user.id, { assignedBranchIds: [...user.assignedBranchIds, bid] });
+                                        }
+                                      }}
+                                      className="text-[10px] border border-dashed border-gray-300 px-1.5 py-0.5 rounded hover:bg-gray-50"
+                                    >
+                                      + Thêm
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right space-x-2">
+                              <button 
+                                onClick={() => {
+                                  const newPass = prompt('Nhập mật khẩu mới:');
+                                  if (newPass) handleUpdateUser(user.id, { password: newPass });
+                                }}
+                                className="text-indigo-600 hover:text-indigo-800"
+                                title="Đổi mật khẩu"
+                              >
+                                <i className="fas fa-key"></i>
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="text-red-600 hover:text-red-800"
+                                disabled={user.username === 'admin'}
+                                title="Xóa"
+                              >
+                                <i className="fas fa-trash-alt"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
 
               {/* Branch Management Section */}
               <section className="mb-8">
@@ -1444,11 +1675,13 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                 </button>
               </div>
             </>
+              )}
+            </>
           )}
-            </div>
-          </div>
         </div>
-      )}
+      </div>
+    </div>
+  )}
 
     </div>
   );

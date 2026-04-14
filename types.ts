@@ -18,6 +18,21 @@ export enum DeviceStatus {
   FIXED = 'FIXED'            // Đã sửa
 }
 
+export enum UserRole {
+  STAFF = 'STAFF',
+  BRANCH_MANAGER = 'BRANCH_MANAGER',
+  TECHNICAL = 'TECHNICAL',
+  ADMIN = 'ADMIN'
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  password?: string;
+  role: UserRole;
+  assignedBranchIds: string[];
+}
+
 export interface Incident {
   id: string;
   branchId: string;
