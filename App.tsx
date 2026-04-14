@@ -712,29 +712,23 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
     }
 
     const BOM = "\uFEFF";
-    const headers = ["ID", "Chi nhánh", "Loại sự cố", "Người báo cáo", "Chức vụ", "Thời gian", "Tiêu đề", "Mức độ", "Trạng thái", "Nội dung xử lý", "Mô tả chi tiết"];
+    const headers = ["STT", "Thời gian up", "Tên trung tâm", "Nội dung sự cố", "Trạng thái", "Hình ảnh"];
     
-    const csvContent = data.map(i => {
+    const csvContent = data.map((i, index) => {
       const branchName = branches.find(b => b.id === i.branchId)?.name || i.branchId;
       const dateStr = new Date(i.timestamp).toLocaleString('vi-VN');
-      const status = i.isResolved ? "Đã xử lý" : (i.deviceStatus || "Chưa xử lý");
-      const severityMap = { [Severity.HIGH]: "Cao", [Severity.MEDIUM]: "Trung bình", [Severity.LOW]: "Thấp" };
-      const typeMap = { [IncidentType.DEVICE]: "Thiết bị", [IncidentType.GAME]: "Máy game", [IncidentType.ACCIDENT]: "Tai nạn" };
+      const status = i.isResolved ? "Đã xử lý" : "Chưa xử lý";
+      const imageUrls = (i.imageUrls || []).join(" | ");
       
       const escape = (text: string | null | undefined) => `"${(text || '').replace(/"/g, '""')}"`;
 
       return [
-        i.id,
-        escape(branchName),
-        escape(typeMap[i.type as IncidentType]),
-        escape(i.reporterName),
-        escape(i.reporterRole),
+        index + 1,
         escape(dateStr),
-        escape(i.title),
-        escape(severityMap[i.severity as Severity]),
+        escape(branchName),
+        escape(i.title + (i.description ? ": " + i.description : "")),
         escape(status),
-        escape(i.resolutionNote),
-        escape(i.description)
+        escape(imageUrls)
       ].join(",");
     }).join("\n");
 
