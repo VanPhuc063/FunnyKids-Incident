@@ -118,6 +118,13 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
   const [configKey, setConfigKey] = useState('');
   const [connectionError, setConnectionError] = useState('');
   
+  // User Management Modal State
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserUsername, setNewUserUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>(UserRole.STAFF);
+  const [newUserBranches, setNewUserBranches] = useState<string[]>([]);
+  
   const subscriptionRef = useRef<RealtimeChannel | null>(null);
 
   // Initial Check for Config
@@ -334,15 +341,20 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
     }
   };
 
-  const handleAddUser = async (username: string, role: UserRole) => {
+  const handleAddUser = async () => {
+    if (!newUserUsername || !newUserPassword) {
+      alert('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
     const sb = getSupabase();
     if (!sb) return;
 
     const newUser = {
-      username,
-      password: '123', // Default password
-      role,
-      assignedBranchIds: []
+      username: newUserUsername,
+      password: newUserPassword,
+      role: newUserRole,
+      assignedBranchIds: newUserBranches
     };
 
     const { error } = await sb.from('admins').insert([newUser]);
@@ -350,6 +362,11 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
       alert('Lỗi thêm người dùng: ' + error.message);
     } else {
       await fetchUsers();
+      setShowAddUserModal(false);
+      setNewUserUsername('');
+      setNewUserPassword('');
+      setNewUserRole(UserRole.STAFF);
+      setNewUserBranches([]);
     }
   };
 
@@ -1427,10 +1444,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                     Quản lý tài khoản
                   </h3>
                   <button 
-                    onClick={() => {
-                      const username = prompt('Nhập tên đăng nhập mới:');
-                      if (username) handleAddUser(username, UserRole.STAFF);
-                    }}
+                    onClick={() => setShowAddUserModal(true)}
                     className="w-full sm:w-auto bg-fkPurple hover:bg-indigo-700 text-white text-sm font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center shadow-sm"
                   >
                     <i className="fas fa-user-plus mr-2"></i> Thêm tài khoản
@@ -1480,17 +1494,27 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                                         }} className="hover:text-red-500">×</button>
                                       </span>
                                     ))}
-                                    <button 
-                                      onClick={() => {
-                                        const bid = prompt('Nhập ID chi nhánh hoặc chọn từ danh sách (tính năng này nên là dropdown):');
-                                        if (bid && !user.assignedBranchIds.includes(bid)) {
-                                          handleUpdateUser(user.id, { assignedBranchIds: [...user.assignedBranchIds, bid] });
+                                    <div className="relative inline-block">
+                                      <select 
+                                        className="text-[10px] border border-dashed border-gray-300 px-1.5 py-0.5 rounded hover:bg-gray-50 appearance-none bg-transparent"
+                                        onChange={(e) => {
+                                          const bid = e.target.value;
+                                          if (bid && !user.assignedBranchIds.includes(bid)) {
+                                            handleUpdateUser(user.id, { assignedBranchIds: [...user.assignedBranchIds, bid] });
+                                          }
+                                          e.target.value = "";
+                                        }}
+                                        value=""
+                                      >
+                                        <option value="" disabled>+ Thêm</option>
+                                        {branches
+                                          .filter(b => !user.assignedBranchIds.includes(b.id))
+                                          .map(b => (
+                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                          ))
                                         }
-                                      }}
-                                      className="text-[10px] border border-dashed border-gray-300 px-1.5 py-0.5 rounded hover:bg-gray-50"
-                                    >
-                                      + Thêm
-                                    </button>
+                                      </select>
+                                    </div>
                                   </>
                                 )}
                               </div>
@@ -1682,6 +1706,115 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
       </div>
     </div>
   )}
+
+      {/* ADD USER MODAL */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+            <div className="bg-fkPurple p-4 text-white flex justify-between items-center">
+              <h3 className="font-bold flex items-center">
+                <i className="fas fa-user-plus mr-2"></i> Thêm tài khoản mới
+              </h3>
+              <button onClick={() => setShowAddUserModal(false)} className="hover:rotate-90 transition-transform">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className={labelStyle}>Tên đăng nhập</label>
+                <input 
+                  type="text" 
+                  value={newUserUsername}
+                  onChange={(e) => setNewUserUsername(e.target.value)}
+                  className={inputStyle}
+                  placeholder="Nhập username..."
+                />
+              </div>
+              <div>
+                <label className={labelStyle}>Mật khẩu</label>
+                <input 
+                  type="password" 
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  className={inputStyle}
+                  placeholder="Nhập mật khẩu..."
+                />
+              </div>
+              <div>
+                <label className={labelStyle}>Vai trò</label>
+                <select 
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                  className={inputStyle}
+                >
+                  <option value={UserRole.STAFF}>Nhân viên (STAFF)</option>
+                  <option value={UserRole.BRANCH_MANAGER}>Quản lý (MANAGER)</option>
+                  <option value={UserRole.TECHNICAL}>Kĩ thuật (TECHNICAL)</option>
+                  <option value={UserRole.ADMIN}>Quản trị (ADMIN)</option>
+                </select>
+              </div>
+              
+              {newUserRole !== UserRole.ADMIN && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className={labelStyle + " mb-0"}>Chi nhánh được gán</label>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 cursor-pointer hover:text-indigo-800 transition-colors">
+                      <input 
+                        type="checkbox"
+                        checked={newUserBranches.length === branches.length && branches.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewUserBranches(branches.map(b => b.id));
+                          } else {
+                            setNewUserBranches([]);
+                          }
+                        }}
+                        className="w-3.5 h-3.5 text-fkPurple rounded border-gray-300 focus:ring-fkPurple"
+                      />
+                      Chọn tất cả
+                    </label>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto border rounded-lg p-2 space-y-2 bg-gray-50">
+                    {branches.map(branch => (
+                      <label key={branch.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1 rounded transition-colors">
+                        <input 
+                          type="checkbox"
+                          checked={newUserBranches.includes(branch.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewUserBranches([...newUserBranches, branch.id]);
+                            } else {
+                              setNewUserBranches(newUserBranches.filter(id => id !== branch.id));
+                            }
+                          }}
+                          className="w-4 h-4 text-fkPurple rounded border-gray-300 focus:ring-fkPurple"
+                        />
+                        <span className="text-sm text-gray-700">{branch.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1 italic">* Tài khoản Admin sẽ mặc định xem được tất cả chi nhánh</p>
+                </div>
+              )}
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  onClick={() => setShowAddUserModal(false)}
+                  className="flex-1 py-3 border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg transition-colors"
+                >
+                  Hủy
+                </button>
+                <button 
+                  onClick={handleAddUser}
+                  className="flex-1 py-3 bg-fkPurple hover:bg-indigo-700 text-white font-bold rounded-lg shadow-lg transition-transform active:scale-95"
+                >
+                  Tạo tài khoản
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
