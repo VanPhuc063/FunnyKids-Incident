@@ -564,6 +564,12 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (currentUser?.role === UserRole.STAFF) {
+      alert("Tài khoản nhân viên không có quyền tạo báo cáo.");
+      return;
+    }
+
     const sb = getSupabase();
     if (!sb) {
       alert("Chưa kết nối đến cơ sở dữ liệu!");
@@ -793,19 +799,22 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
             {viewMode === 'staff' ? 'Theo dõi sự cố' : 'Theo dõi'}
           </button>
           
+          {currentUser && currentUser.role !== UserRole.STAFF && (
+            <button
+              onClick={() => setActiveTab('report')}
+              className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
+                activeTab === 'report' 
+                  ? 'border-fkRed text-fkRed bg-red-50/50' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+               <div className="mb-1"><i className="fas fa-plus-circle text-lg"></i></div>
+              Báo cáo
+            </button>
+          )}
+          
           {currentUser && (
             <>
-              <button
-                onClick={() => setActiveTab('report')}
-                className={`flex-1 py-3 md:py-4 text-center font-medium text-xs md:text-sm transition-colors border-b-2 ${
-                  activeTab === 'report' 
-                    ? 'border-fkRed text-fkRed bg-red-50/50' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                 <div className="mb-1"><i className="fas fa-plus-circle text-lg"></i></div>
-                Báo cáo
-              </button>
               {currentUser.role === UserRole.ADMIN && (
                 <button
                   onClick={() => setActiveTab('export')}
@@ -888,29 +897,43 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
               {/* Summary Stats Bar */}
-              <div className="grid grid-cols-3 gap-2 mb-6">
-                <div 
-                  onClick={() => setSelectedStatusFilter('unresolved')}
-                  className={`cursor-pointer p-3 rounded-lg border text-center transition-all ${selectedStatusFilter === 'unresolved' ? 'bg-fkRed/10 border-fkRed text-fkRed shadow-sm' : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  <div className="text-xl font-bold">{incidents.filter(i => !i.isResolved).length}</div>
-                  <div className="text-[10px] font-bold uppercase">Chưa xử lý</div>
-                </div>
-                <div 
-                  onClick={() => setSelectedStatusFilter('resolved')}
-                  className={`cursor-pointer p-3 rounded-lg border text-center transition-all ${selectedStatusFilter === 'resolved' ? 'bg-green-50 border-green-600 text-green-700 shadow-sm' : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  <div className="text-xl font-bold">{incidents.filter(i => i.isResolved).length}</div>
-                  <div className="text-[10px] font-bold uppercase">Đã xử lý</div>
-                </div>
-                <div 
-                  onClick={() => setSelectedStatusFilter('all')}
-                  className={`cursor-pointer p-3 rounded-lg border text-center transition-all ${selectedStatusFilter === 'all' ? 'bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm' : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  <div className="text-xl font-bold">{incidents.length}</div>
-                  <div className="text-[10px] font-bold uppercase">Tổng số</div>
-                </div>
-              </div>
+              {(() => {
+                const visibleIncidentsForStats = incidents.filter(i => {
+                  if (currentUser && currentUser.role !== UserRole.ADMIN) {
+                    return currentUser.assignedBranchIds?.includes(i.branchId);
+                  }
+                  return true;
+                });
+                const unresolvedCount = visibleIncidentsForStats.filter(i => !i.isResolved).length;
+                const resolvedCount = visibleIncidentsForStats.filter(i => i.isResolved).length;
+                const totalCount = visibleIncidentsForStats.length;
+
+                return (
+                  <div className="grid grid-cols-3 gap-2 mb-6">
+                    <div 
+                      onClick={() => setSelectedStatusFilter('unresolved')}
+                      className={`cursor-pointer p-3 rounded-lg border text-center transition-all ${selectedStatusFilter === 'unresolved' ? 'bg-fkRed/10 border-fkRed text-fkRed shadow-sm' : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'}`}
+                    >
+                      <div className="text-xl font-bold">{unresolvedCount}</div>
+                      <div className="text-[10px] font-bold uppercase">Chưa xử lý</div>
+                    </div>
+                    <div 
+                      onClick={() => setSelectedStatusFilter('resolved')}
+                      className={`cursor-pointer p-3 rounded-lg border text-center transition-all ${selectedStatusFilter === 'resolved' ? 'bg-green-50 border-green-600 text-green-700 shadow-sm' : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'}`}
+                    >
+                      <div className="text-xl font-bold">{resolvedCount}</div>
+                      <div className="text-[10px] font-bold uppercase">Đã xử lý</div>
+                    </div>
+                    <div 
+                      onClick={() => setSelectedStatusFilter('all')}
+                      className={`cursor-pointer p-3 rounded-lg border text-center transition-all ${selectedStatusFilter === 'all' ? 'bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm' : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'}`}
+                    >
+                      <div className="text-xl font-bold">{totalCount}</div>
+                      <div className="text-[10px] font-bold uppercase">Tổng số</div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -988,7 +1011,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                         branch={branch} 
                         incidents={branchIncidents} 
                         onUpdate={handleUpdateIncident} 
-                        readOnly={viewMode === 'staff' || (currentUser?.role !== UserRole.ADMIN && currentUser?.role !== UserRole.TECHNICAL)}
+                        readOnly={currentUser?.role === UserRole.STAFF}
                       />
                     );
                   })
@@ -1007,7 +1030,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                       branch={{ id: 'unknown', name: 'Chi nhánh không xác định (Dữ liệu cũ)' }} 
                       incidents={unknownBranchIncidents} 
                       onUpdate={handleUpdateIncident} 
-                      readOnly={viewMode === 'staff' || (currentUser?.role !== UserRole.ADMIN && currentUser?.role !== UserRole.TECHNICAL)}
+                      readOnly={currentUser?.role === UserRole.STAFF}
                     />
                   );
                 })()}
