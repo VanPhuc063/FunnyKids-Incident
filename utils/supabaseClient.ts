@@ -6,11 +6,10 @@ let supabaseInstance: SupabaseClient | null = null;
 export const getSupabase = (): SupabaseClient | null => {
   if (supabaseInstance) return supabaseInstance;
 
-  // 1. Ưu tiên đọc từ biến môi trường (Cấu hình trên Vercel)
-  // Use type assertion to avoid TS errors when vite types are missing
-  const env = (import.meta as any).env;
-  const envUrl = env?.VITE_SUPABASE_URL;
-  const envKey = env?.VITE_SUPABASE_KEY;
+  // 1. Ưu tiên đọc từ biến môi trường
+  // Trong môi trường AI Studio Build, biến môi trường thường nằm trong process.env
+  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (process as any).env?.VITE_SUPABASE_URL;
+  const envKey = (import.meta as any).env?.VITE_SUPABASE_KEY || (process as any).env?.VITE_SUPABASE_KEY;
 
   if (envUrl && envKey) {
     try {
