@@ -14,6 +14,7 @@ export const getSupabase = (): SupabaseClient | null => {
 
   if (envUrl && envKey) {
     try {
+      console.log("Using Supabase config from Environment Variables");
       supabaseInstance = createClient(envUrl, envKey, {
         global: {
           fetch: (...args) => fetch(...args)
@@ -31,6 +32,7 @@ export const getSupabase = (): SupabaseClient | null => {
 
   if (url && key) {
     try {
+      console.log("Using Supabase config from LocalStorage");
       supabaseInstance = createClient(url, key, {
         global: {
           fetch: (...args) => fetch(...args)

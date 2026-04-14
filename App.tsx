@@ -390,6 +390,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
   const [formDesc, setFormDesc] = useState('');
   const [formSeverity, setFormSeverity] = useState<Severity>(Severity.LOW);
   const [formImages, setFormImages] = useState<string[]>([]); // Base64 strings
+  const [formDeviceStatus, setFormDeviceStatus] = useState<DeviceStatus>(DeviceStatus.BROKEN);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // New Fields
@@ -528,6 +529,7 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
     // 2. Insert into DB
     const newIncident = {
+      id: crypto.randomUUID(), // Generate client-side ID to avoid NULL in DB
       branchId: formBranchId,
       title: formTitle,
       description: formDesc,
@@ -537,7 +539,8 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
       imageUrls: uploadedImageUrls,
       reporterName: formReporterName,
       reporterRole: formReporterRole,
-      isResolved: false
+      isResolved: false,
+      deviceStatus: (formType === IncidentType.DEVICE || formType === IncidentType.GAME) ? formDeviceStatus : null
     };
 
     const { error } = await sb.from('incidents').insert([newIncident]);
@@ -996,6 +999,21 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700"><i className="fas fa-chevron-down text-xs"></i></div>
                 </div>
               </div>
+
+              {(formType === IncidentType.DEVICE || formType === IncidentType.GAME) && (
+                <div>
+                  <label className={labelStyle}>Trạng thái thiết bị</label>
+                  <div className="relative">
+                    <select value={formDeviceStatus} onChange={(e) => setFormDeviceStatus(e.target.value as DeviceStatus)} className={inputStyle}>
+                      <option value={DeviceStatus.BROKEN}>Hỏng hẳn / Không hoạt động</option>
+                      <option value={DeviceStatus.UNSAFE}>Không an toàn (Vẫn chạy nhưng nguy hiểm)</option>
+                      <option value={DeviceStatus.WAITING_PARTS}>Đang chờ linh kiện thay thế</option>
+                      <option value={DeviceStatus.FIXED}>Đã sửa xong</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700"><i className="fas fa-chevron-down text-xs"></i></div>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-6 border-t border-gray-100 flex flex-col items-center gap-4">
                 <button 
