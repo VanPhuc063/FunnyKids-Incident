@@ -94,8 +94,8 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
   const [activeTab, setActiveTab] = useState<'dashboard' | 'report' | 'export'>('dashboard');
   const [viewMode] = useState<'manager' | 'staff'>(initialMode);
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [branches, setBranches] = useState<Branch[]>(BRANCHES);
-  const [isLoading, setIsLoading] = useState(false); // Default false until we try to fetch
+  const [branches, setBranches] = useState<Branch[]>([]); // Initialize empty to show connection status
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<'all' | IncidentType>('all');
@@ -268,15 +268,55 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
 
     if (error) {
       console.error('Error fetching branches:', error);
-      // Fallback to hardcoded BRANCHES only if table doesn't exist or error occurs
-      if (error.code === '42P01') { // Table not found
+      // Fallback to hardcoded BRANCHES only if table doesn't exist
+      if (error.code === '42P01') { 
         setBranches(BRANCHES);
       } else {
         setConnectionError(`Lỗi tải chi nhánh: ${error.message}`);
+        setBranches(BRANCHES); // Fallback on other errors too to keep app usable
       }
     } else if (data) {
-      // If table exists, use its data (even if empty)
-      setBranches(data as Branch[]);
+      // If table exists but is empty, we might want to show the default list 
+      // but the user said they want it "linked", so we show what's in DB.
+      if (data.length === 0 && !isConfigured) {
+        setBranches(BRANCHES);
+      } else {
+        setBranches(data as Branch[]);
+      }
+    }
+  };
+
+  // Helper: Sync default branches to Supabase
+  const handleSyncDefaultBranches = async () => {
+    const sb = getSupabase();
+    if (!sb) return;
+
+    if (!window.confirm('Bạn có muốn tải 33 chi nhánh mặc định lên cơ sở dữ liệu Supabase không?')) return;
+
+    setIsLoading(true);
+    try {
+      // Check if table exists by trying a simple select
+      const { error: checkError } = await sb.from('branches').select('id').limit(1);
+      
+      if (checkError && checkError.code === '42P01') {
+        alert('Bảng "branches" chưa tồn tại. Vui lòng chạy câu lệnh SQL tạo bảng trước.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Insert branches with their hardcoded IDs
+      const { error } = await sb.from('branches').upsert(
+        BRANCHES.map(b => ({ id: b.id, name: b.name }))
+      );
+
+      if (error) throw error;
+      
+      alert('Đã đồng bộ 33 chi nhánh lên Supabase thành công!');
+      await fetchBranches();
+    } catch (error: any) {
+      alert('Lỗi đồng bộ: ' + error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1104,6 +1144,17 @@ const AppContent: React.FC<{ initialMode: 'manager' | 'staff' }> = ({ initialMod
                 <div className="text-red-600 text-sm bg-red-50 p-3 rounded flex items-center">
                   <i className="fas fa-exclamation-circle mr-2"></i> {connectionError}
                 </div>
+              )}
+
+              {isConfigured && (
+                <button
+                  onClick={handleSyncDefaultBranches}
+                  disabled={isLoading}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  <i className={`fas ${isLoading ? 'fa-circle-notch fa-spin' : 'fa-sync'}`}></i>
+                  Đồng bộ 33 chi nhánh mặc định lên DB
+                </button>
               )}
 
               <div className="pt-4 flex gap-3">

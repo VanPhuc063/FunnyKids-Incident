@@ -14,7 +14,11 @@ export const getSupabase = (): SupabaseClient | null => {
 
   if (envUrl && envKey) {
     try {
-      supabaseInstance = createClient(envUrl, envKey);
+      supabaseInstance = createClient(envUrl, envKey, {
+        global: {
+          fetch: (...args) => fetch(...args)
+        }
+      });
       return supabaseInstance;
     } catch (e) {
       console.error("Invalid Environment Variables Config", e);
@@ -27,7 +31,11 @@ export const getSupabase = (): SupabaseClient | null => {
 
   if (url && key) {
     try {
-      supabaseInstance = createClient(url, key);
+      supabaseInstance = createClient(url, key, {
+        global: {
+          fetch: (...args) => fetch(...args)
+        }
+      });
       return supabaseInstance;
     } catch (e) {
       console.error("Invalid Local Storage Config", e);
@@ -46,7 +54,11 @@ export const initSupabase = (url: string, key: string) => {
   
   localStorage.setItem('sb_url', url);
   localStorage.setItem('sb_key', key);
-  supabaseInstance = createClient(url, key);
+  supabaseInstance = createClient(url, key, {
+    global: {
+      fetch: (...args) => fetch(...args)
+    }
+  });
   return supabaseInstance;
 };
 
